@@ -94,7 +94,7 @@ A **Span** may be linked to zero or more other **Spans** (defined by
 **SpanContext**) that are causally related. **Links** can point to
 **SpanContexts** inside a single **Trace** or across different **Traces**.
 **Links** can be used to represent batched operations where a **Span** was
-initiated by multiple initiating **Span**s, each representing a single incoming
+initiated by multiple initiating **Spans**, each representing a single incoming
 item being processed in the batch.
 
 Another example of using a **Link** is to declare the relationship between
@@ -107,7 +107,7 @@ initiated by one of many fast incoming requests.
 When using the scatter/gather (also called fork/join) pattern, the root
 operation starts multiple downstream processing operations and all of them are
 aggregated back in a single **Span**. This last **Span** is linked to many
-operations it aggregates. All of them are the **Span**s from the same Trace. And
+operations it aggregates. All of them are the **Spans** from the same Trace. And
 similar to the Parent field of a **Span**. It is recommended, however, to not
 set parent of the **Span** in this scenario as semantically the parent field
 represents a single parent scenario, in many cases the parent **Span** fully
@@ -193,31 +193,28 @@ OpenTelemetry defines the naming convention for metric names as well as a
 well-known metric names in [Semantic Conventions](data-semantic-conventions.md)
 document.
 
-## DistributedContext
+## CorrelationContext
 
-The **DistributedContext** exists to store labels that describe the context of an operation an application performs. It is intended to enable context that are custom to the application or integrations in contrast to other contexts, such as `SpanContext`. Only one **DistributedContext** should be associated with any particular operation.
+In addition to trace propagation, OpenTelemetry provides a simple mechanism for propagating
+name/value pairs, called `CorrelationContext`. `CorrelationContext` is intended for
+indexing observability events in one service with attributes provided by a prior service in
+the same transaction. This helps to establish a causal relationship between these events.
 
-For example, a web service can benefit from including context around what service has sent the request. Or a SaaS provider can include context about the API user or token that is responsible for that request. These values can be consumed from **DistributedContext** and used as an additional dimension for a metric, or additional context for logs and traces.
+The `CorrelationContext` implements the editor's draft of the [W3C Correlation-Context specification](https://w3c.github.io/correlation-context/).
+While `CorrelationContext` can be used to prototype other cross-cutting concerns, this mechanism is primarily intended
+to convey values for the OpenTelemetry observability systems.
 
-**DistributedContext** is a collection of key-value `Entry` pairs, with each key of associated with exactly one value. **DistributedContext** is serializable,
-to facilitate propagating it not only inside the process but also across process boundaries.
+These values can be consumed from `CorrelationContext` and used as additional dimensions for metrics,
+or additional context for logs and traces. Some examples:
 
-**DistributedContext** is a recommended name but languages can have more language-specific names like **dctx**.
+- a web service can benefit from including context around what service has sent the request
+- a SaaS provider can include context about the API user or token that is responsible for that request
+- determining that a particular browser version is associated with a failure in an image processing service
 
-### Entry
-
-An **Entry** is used to represent the labels that are contained inside the `DistributedContext`, representing values such as the service that originated the request, or vendor-specific data. It consists of an **EntryKey**, an **EntryValue** and an **EntryMetadata**.
-
-- **EntryKey** is the name of the **Entry**. **EntryKey** along with **EntryValue**
-  can be used to aggregate and group stats, annotate traces and logs, etc. **EntryKey** is
-  a string that contains only printable ASCII (codes between 32 and 126 inclusive) and with
-  a length greater than zero and less than 256.
-- **EntryValue** is a string that contains only printable ASCII (codes between 32 and 126).
-- **EntryMetadata** contains properties associated with an **Entry**.
-  For now only the property **EntryTTL** is defined.
-- **EntryTTL** is an integer that represents number of hops an entry can propagate.
-  Anytime a sender serializes an entry, sends it over the wire and a receiver deserializes
-  the entry then the entry is considered to have travelled one hop.
+For backward compatibility with OpenTracing, Baggage is propagated as `CorrelationContext` when
+using the OpenTracing bridge. New concerns with different criteria should consider creating a new
+cross-cutting concern to cover their use-case; they may benefit from the W3C encoding format but
+use a new HTTP header to convey data throughout a distributed trace.
 
 ## Resources
 
@@ -235,12 +232,20 @@ OpenTelemetry
 [proto](https://github.com/open-telemetry/opentelemetry-proto/blob/a46c815aa5e85a52deb6cb35b8bc182fb3ca86a0/src/opentelemetry/proto/agent/common/v1/common.proto#L28-L96)
 for an example.
 
+## Context Propagation
+
+All of OpenTelemetry cross-cutting concerns, such as traces and metrics,
+share an underlying `Context` mechanism for storing state and
+accessing data across the lifespan of a distributed transaction.
+
+See the [Context](context.md)
+
 ## Propagators
 
-OpenTelemetry uses `Propagators` to serialize and deserialize `SpanContext` and `DistributedContext`
-into a binary or text format. Currently there are two types of propagators:
+OpenTelemetry uses `Propagators` to serialize and deserialize cross-cutting concern values
+such as `SpanContext` and `CorrelationContext` into a `Format`. Currently there is one
+type of propagator:
 
-- `BinaryFormat` which is used to serialize and deserialize a value into a binary representation.
 - `HTTPTextFormat` which is used to inject and extract a value as text into carriers that travel
   in-band across process boundaries.
 
