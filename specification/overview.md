@@ -54,11 +54,8 @@ Each **Span** encapsulates the following state:
 
 - An operation name
 - A start and finish timestamp
-- A set of zero or more key:value **Attributes**. The keys must be strings. The
-  values may be strings, bools, or numeric types.
-- A set of zero or more **Events**, each of which is itself a key:value map
-  paired with a timestamp. The keys must be strings, though the values may be of
-  the same types as Span **Attributes**.
+- [**Attributes**](./common/common.md#attributes): A list of key-value pairs.
+- A set of zero or more **Events**, each of which is itself a tuple (timestamp, name, [**Attributes**](./common/common.md#attributes)). The name must be strings.
 - Parent's **Span** identifier.
 - [**Links**](#links-between-spans) to zero or more causally-related **Spans**
   (via the **SpanContext** of those related **Spans**).
@@ -189,6 +186,13 @@ validation and sanitization of the Metrics data. Instead, pass the data to the
 backend, rely on the backend to perform validation, and pass back any errors
 from the backend.
 
+## Logs
+
+### Data model
+
+[Log Data Model](logs/data-model.md) defines how logs and events are understood by
+OpenTelemetry.
+
 ## CorrelationContext
 
 In addition to trace propagation, OpenTelemetry provides a simple mechanism for propagating
@@ -196,7 +200,6 @@ name/value pairs, called `CorrelationContext`. `CorrelationContext` is intended 
 indexing observability events in one service with attributes provided by a prior service in
 the same transaction. This helps to establish a causal relationship between these events.
 
-The `CorrelationContext` implements the editor's draft of the [W3C Correlation-Context specification](https://w3c.github.io/correlation-context/).
 While `CorrelationContext` can be used to prototype other cross-cutting concerns, this mechanism is primarily intended
 to convey values for the OpenTelemetry observability systems.
 
@@ -239,11 +242,12 @@ See the [Context](context/context.md)
 ## Propagators
 
 OpenTelemetry uses `Propagators` to serialize and deserialize cross-cutting concern values
-such as `SpanContext` and `CorrelationContext` into a `Format`. Currently there is one
-type of propagator:
+such as `SpanContext` and `CorrelationContext`. Different `Propagator` types define the restrictions
+imposed by a specific transport and bound to a data type.
 
-- `HTTPTextFormat` which is used to inject and extract a value as text into carriers that travel
-  in-band across process boundaries.
+The Propagators API currently defines one `Propagator` type:
+
+- `HTTPTextPropagator` injects values into and extracts values from carriers as text.
 
 ## Collector
 
@@ -262,22 +266,29 @@ service).
 Read more at OpenTelemetry Service [Long-term
 Vision](https://github.com/open-telemetry/opentelemetry-collector/blob/master/docs/vision.md).
 
-## Instrumentation adapters
+## Instrumentation Libraries
+
+See [Instrumentation Library](glossary.md#instrumentation_library)
 
 The inspiration of the project is to make every library and application
-manageable out of the box by instrumenting it with OpenTelemetry. However on the
-way to this goal there will be a need to enable instrumentation by plugging
-instrumentation adapters into the library of choice. These adapters can be
-wrapping library APIs, subscribing to the library-specific callbacks or
-translating telemetry exposed in other formats into OpenTelemetry model.
+observable out of the box by having them call OpenTelemetry API directly. However,
+many libraries will not have such integration, and as such there is a need for
+a separate library which would inject such calls, using mechanisms such as
+wrapping interfaces, subscribing to library-specific callbacks, or translating
+existing telemetry into the OpenTelemetry model.
 
-Instrumentation adapters may be called different names. It is often referred as
-plugin, collector or auto-collector, telemetry module, bridge, etc. It is always
-recommended to follow the library and language standards. For instance, if
-instrumentation adapter is implemented as "log appender" - it will probably be
-called an `appender`, not an instrumentation adapter. However if there is no
-established name - the recommendation is to call packages "Instrumentation
-Adapter" or simply "Adapter".
+A library that enables OpenTelemetry observability for another library is called
+an [Instrumentation Library](glossary.md#instrumentation_library).
+
+An instrumentation library should be named to follow any naming conventions of
+the instrumented library (e.g. 'middleware' for a web framework).
+
+If there is no established name, the recommendation is to prefix packages
+with "opentelemetry-instrumentation", followed by the instrumented library
+name itself. Examples include:
+
+* opentelemetry-instrumentation-flask (Python)
+* @opentelemetry/instrumentation-grpc (Javascript)
 
 ## Code injecting adapters
 
@@ -293,6 +304,4 @@ Span attributes.
 * [Metrics Conventions](metrics/semantic_conventions/README.md)
 
 The type of the attribute SHOULD be specified in the semantic convention
-for that attribute. Array values are allowed for attributes. For
-protocols that do not natively support array values such values MUST be
-represented as JSON strings.
+for that attribute. See more details about [Attributes](./common/common.md#attributes).
